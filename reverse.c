@@ -8,7 +8,6 @@
 
 bool check_format(WAVHEADER header);
 int get_block_size(WAVHEADER header);
-void reverse(int n, int m, BYTE samples[n][m]);
 
 int main(int argc, char *argv[])
 {
@@ -56,40 +55,26 @@ int main(int argc, char *argv[])
 	// Use get_block_size to calculate size of block
 	int BLOCK_SIZE = get_block_size(header);
 
-	// calculate number of audio samples
-	int s_count = header.subchunk2Size / BLOCK_SIZE;
+	// Alocate memory for an array of blocks of audio samples
+	int count = 0;
+	BYTE (*blocks)[BLOCK_SIZE] = calloc(count + 1, BLOCK_SIZE * sizeof(BYTE));
 
-	// calculate length of each audio sample
-	int s_length = header.bitsPerSample / 8;
-
-	// allocate memory for samples
-	BYTE (*samples)[s_length] = calloc(s_count, s_length * sizeof(BYTE));
-	if (samples == NULL)
+	// Read each block of BLOCK_SIZE
+	while(fread(blocks[count], sizeof(BYTE), BLOCK_SIZE, inptr) == BLOCK_SIZE)
 	{
-		printf("Not enough memory to store audio samples.\n");
-		fclose(outptr);
-		fclose(inptr);
-		return 5;
+		count++;
+		blocks = realloc(blocks, (count + 1) * BLOCK_SIZE * sizeof(BYTE));
 	}
 
-	// iterate over infile's scanlines
-	for (int i = 0; i < s_count; i++)
+	// Write reversed array to outfile
+	for (int i = count - 1; i >= 0; i--)
 	{
-		// read row into samples array
-		fread(samples[i], sizeof(BYTE), s_length, inptr);
+		fwrite(blocks[i], sizeof(BYTE), BLOCK_SIZE, outptr);
 	}
 
-	// reverse audio samples
-	reverse(s_count, s_length, samples);
 
-	// write new audio bits to outfile
-	for (int i = 0; i < s_count; i++)
-	{
-		fwrite(samples[i], sizeof(BYTE), s_length, outptr);
-	}
-
-	// free memory for samples
-	free(samples);
+	// free memory for blocks
+	free(blocks);
 
 	// close infile
 	fclose(inptr);
@@ -114,27 +99,4 @@ bool check_format(WAVHEADER header)
 int get_block_size(WAVHEADER header)
 {
 	return header.numChannels * header.bitsPerSample / 8;
-}
-
-void reverse(int s_count, int s_length, BYTE samples[s_count][s_length])
-{
-	BYTE reverse_samples[s_count][s_length];
-
-	// create a reversed copy of samples array and store it in reverse_samples
-	for (int i = 0; i < s_count; i++)
-	{
-		for (int j = 0; j < s_length; j++)
-		{
-			reverse_samples[i][j] = samples[s_count - i - 1][s_length - j - 1];
-		}
-	}
-
-	// copy reverse_samples[i][j] to samples[i][j]
-	for (int i = 0; i < s_count; i++)
-	{
-		for (int j = 0; j < s_length; j++)
-		{
-			samples[i][j] = reverse_samples[i][j];
-		}
-	}
 }
